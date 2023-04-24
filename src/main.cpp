@@ -25,8 +25,6 @@ PrintEx serial = Serial;
 #define STEER_OK_SIG LOW
 #define STEER_NOK_SIG HIGH
 
-const char * const fmt_mc PROGMEM = "Motorcurrent: %fmA.\nVoltage: %f\n";
-
 void TRIGGERED() {
     chron.stop();
     if (digitalRead(CHANGE_SW)){
@@ -35,7 +33,7 @@ void TRIGGERED() {
     }
 
     if (!debounce.hasPassed(500)){
-      serial.println("NotPassed!");
+      serial.println(str_not_passed);
       return;
     }
     flaggen.BUTTON_PRESSED = true;
@@ -62,8 +60,8 @@ void setup() {
   flaggen.USE_TIMEBASED = !ina.begin();
   //ina.setCalibration_16V_400mA();
   ina.setCalibration_32V_2A();
-  serial.print("Erkennung des Anschlages?: ");
-  serial.println(flaggen.USE_TIMEBASED ? "Zeitablauf" : "Stommessung");
+  serial.print(str_motor_endstop_type);
+  serial.println(flaggen.USE_TIMEBASED ? str_time_based : str_current_based);
 }
 
 
@@ -82,15 +80,7 @@ void motor_drv(STATE_REG from, STATE_REG to) {
 
       auto elapsed = chron.elapsed();
       float progress = elapsed / TIMEOUT * 100;
-      serial.println("Timebased: ");
-      serial.print("Vergangene Zeit: ");
-      serial.print(chron.elapsed());
-      serial.print("ms / ");
-      serial.print(TIMEOUT);
-      serial.println("ms");
-      serial.print("Fortschritt: ");
-      serial.print( progress );
-      serial.println("% \n");
+      serial.printf(str_fmt_time, chron.elapsed(), TIMEOUT, progress);
       return;
     }
 
@@ -101,7 +91,7 @@ void motor_drv(STATE_REG from, STATE_REG to) {
       char buf[65] = {0};
 
       //snprintf(buf, 64, fmt_mc, current, ina.getBusVoltage_V());
-      serial.printf(fmt_mc, current, ina.getBusVoltage_V());
+      serial.printf(str_fmt_mc, current, ina.getBusVoltage_V());
 
       if (current < MIN_MA){
         flaggen.TRYS++;
@@ -114,7 +104,7 @@ void motor_drv(STATE_REG from, STATE_REG to) {
       }
       if (chron.hasPassed(TIMEOUT * 1.5)){
         flaggen.TIMEDOUT = true;
-        serial.println("SET ERROR TIMEOUT!");
+        serial.println(str_set_error_timeout);
 
         currState = STATE_REG::ERROR;
         return;
@@ -124,13 +114,13 @@ void motor_drv(STATE_REG from, STATE_REG to) {
 
 void loop() {
   if (currState == STATE_REG::IDLE && flaggen.MOT_TEST){
-    Serial.println("Motortest bzw Sync with reality");
+    Serial.println(str_init_sync_motor);
     currState = STATE_REG::EXTEND;
   }
 
   switch (currState) {
     case STATE_REG::EXTEND:
-      Serial.println("Extending...");
+      Serial.println(str_extending);
       digitalWrite(STEER_OK, STEER_NOK_SIG);
       motor_drv(currState, STATE_REG::EXTENED);
       break;
@@ -139,7 +129,7 @@ void loop() {
       delay(500);
       currState = STATE_REG::RETRACT;
     case STATE_REG::RETRACT:
-      Serial.println("Retracting...");
+      Serial.println(str_retracting);
       digitalWrite(STEER_OK, STEER_NOK_SIG);
       motor_drv(currState, STATE_REG::RETRACTED);
       break;
@@ -147,7 +137,7 @@ void loop() {
       if (flaggen.MOT_TEST){
         currState = STATE_REG::RETRACT;
         flaggen.MOT_TEST = false;
-        Serial.println("Motortest bzw Sync with reality");
+        Serial.println(str_init_sync_motor);
         return;
       }
       if (flaggen.BUTTON_PRESSED){
@@ -171,15 +161,13 @@ void loop() {
       digitalWrite(STEER_OK, STEER_NOK_SIG);
       digitalWrite(MOTORB, LOW);
       digitalWrite(MOTORA, LOW);
-      Serial.println("Error: \n  Flags:");
-      Serial.print("USE_TIMEBASED: ");
-      Serial.println(yesNo(flaggen.USE_TIMEBASED));
-      Serial.print("TIMEDOUT: ");
-      Serial.println(flaggen.TIMEDOUT);
-      Serial.print("TRYS: ");
-      Serial.println(flaggen.TRYS);
-      Serial.print("MOT_TEST: ");
-      Serial.println(yesNo(flaggen.MOT_TEST));
+      serial.printf(
+        str_print_errors,
+        yesNo(flaggen.USE_TIMEBASED),
+        yesNo(flaggen.TIMEDOUT),
+        flaggen.TRYS,
+        yesNo(flaggen.MOT_TEST)
+      );
       delay(1000);
   default:
     break;
