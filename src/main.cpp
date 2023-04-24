@@ -22,8 +22,8 @@ PrintEx serial = Serial;
 
 #define TIMEOUT 10000 // 10s
 #define MIN_MA 70 
-#define STEER_OK_SIG LOW
-#define STEER_NOK_SIG HIGH
+#define STEER_OK_SIG HIGH
+#define STEER_NOK_SIG LOW
 
 void TRIGGERED() {
     chron.stop();
